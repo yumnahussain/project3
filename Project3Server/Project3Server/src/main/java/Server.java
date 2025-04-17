@@ -12,13 +12,16 @@ import javafx.scene.control.ListView;
 
 public class Server{
 
+
 	int count = 1;	
 	ArrayList<ClientThread> clients = new ArrayList<ClientThread>();
 	TheServer server;
+	private Consumer<Serializable> callback;
 	
 	
-	Server(){
+	Server(Consumer<Serializable> call){
 
+		callback = call;
 		server = new TheServer();
 		server.start();
 	}
@@ -35,6 +38,10 @@ public class Server{
 		    while(true) {
 		
 				ClientThread c = new ClientThread(mysocket.accept(), count);
+				System.out.println("client connected");
+				callback.accept("client connected to server " + " client" + count);
+
+
 				clients.add(c);
 				c.start();
 				
@@ -62,7 +69,14 @@ public class Server{
 			}
 			
 			public void updateClients(String message) {
-				//TODO implement
+				for(int i = 0; i < clients.size(); i++) {
+					ClientThread t = clients.get(i);
+					try {
+						t.out.writeObject(message);
+					}
+					catch(Exception e) {}
+				}
+
 			}
 			
 			public void run(){

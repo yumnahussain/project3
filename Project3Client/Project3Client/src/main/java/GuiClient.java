@@ -14,6 +14,7 @@ public class GuiClient extends Application{
 	public static void main(String[] args) {
 		Client clientThread = new Client();
 		clientThread.start();
+		launch(args);
 		Scanner s = new Scanner(System.in);
 		while (s.hasNext()){
 			String x = s.next();
@@ -28,7 +29,8 @@ public class GuiClient extends Application{
 	@Override
 	public void start(Stage primaryStage) throws Exception {
 
-		primaryStage.setScene(new Scene(new TextField("I am not yet implemented")));
+
+		primaryStage.setScene(new Scene(new TextField("I am not yet implemented"), 400, 200));
 		primaryStage.setTitle("Client");
 		primaryStage.show();
 		
