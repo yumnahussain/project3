@@ -1,43 +1,6 @@
-//
-//import java.util.HashMap;
-//
-//import javafx.application.Application;
-//
-//import javafx.scene.Scene;
-//import javafx.scene.control.Button;
-//import javafx.scene.control.ListView;
-//import javafx.scene.control.TextField;
-//import javafx.scene.layout.BorderPane;
-//import javafx.scene.layout.GridPane;
-//import javafx.scene.layout.HBox;
-//import javafx.scene.layout.VBox;
-//import javafx.stage.Stage;
-//import javafx.stage.WindowEvent;
-//
-//public class GuiServer extends Application{
-//
-//	server serverConnection;
-//	HashMap<String, Scene> sceneMap;
-//
-//	public static void main(String[] args) {
-//		Server serv = new Server();
-//		launch(args);
-//
-//	}
-//
-//	@Override
-//	public void start(Stage primaryStage) throws Exception {
-//
-//		primaryStage.setScene(new Scene(new TextField("I am not yet implemented"), 400, 200));
-//		primaryStage.setTitle("Server");
-//		primaryStage.show();
-//
-//	}
-//
 
-
-//}
-
+import java.util.HashMap;
+import java.util.function.Consumer;
 
 import javafx.application.Application;
 import javafx.application.Platform;
@@ -53,34 +16,56 @@ import javafx.scene.layout.HBox;
 import javafx.scene.layout.VBox;
 import javafx.stage.Stage;
 import javafx.stage.WindowEvent;
-import java.util.HashMap;
 
 public class GuiServer extends Application{
 
-	HashMap<String, Scene> sceneMap;
 	Server serverConnection;
 
 	ListView<String> listItems;
+	ListView<String> listUsers;
+
+	HBox lists;
 
 
 	public static void main(String[] args) {
 		launch(args);
 	}
 
+
 	@Override
 	public void start(Stage primaryStage) throws Exception {
-		serverConnection = new Server(data -> {
+		serverConnection = new Server(data->{
 			Platform.runLater(()->{
-				listItems.getItems().add(data.toString());
+				switch (data.type){
+					case TEXT:
+						listItems.getItems().add(data.recipient+": "+data.message);
+						break;
+					case NEWUSER:
+						listUsers.getItems().add(String.valueOf(data.recipient));
+						listItems.getItems().add(data.recipient + " has joined!");
+						break;
+					case DISCONNECT:
+						listUsers.getItems().remove(String.valueOf(data.recipient));
+						listItems.getItems().add(data.recipient + " has disconnected!");
+				}
 			});
 		});
 
 
 		listItems = new ListView<String>();
+		listUsers = new ListView<String>();
 
-		sceneMap = new HashMap<String, Scene>();
+		lists = new HBox(listUsers,listItems);
 
-		sceneMap.put("server",  createServerGui());
+
+		BorderPane pane = new BorderPane();
+		pane.setPadding(new Insets(70));
+		pane.setStyle("-fx-background-color: coral");
+
+		pane.setCenter(lists);
+		pane.setStyle("-fx-font-family: 'serif'");
+		;
+
 
 		primaryStage.setOnCloseRequest(new EventHandler<WindowEvent>() {
 			@Override
@@ -90,24 +75,12 @@ public class GuiServer extends Application{
 			}
 		});
 
-		primaryStage.setScene(sceneMap.get("server"));
+		primaryStage.setScene(new Scene(pane, 500, 400));
 		primaryStage.setTitle("This is the Server");
 		primaryStage.show();
 
 	}
 
-	public Scene createServerGui() {
-
-		BorderPane pane = new BorderPane();
-		pane.setPadding(new Insets(70));
-		pane.setStyle("-fx-background-color: coral");
-
-		pane.setCenter(listItems);
-		pane.setStyle("-fx-font-family: 'serif'");
-		return new Scene(pane, 500, 400);
-
-
-	}
 
 
 }
