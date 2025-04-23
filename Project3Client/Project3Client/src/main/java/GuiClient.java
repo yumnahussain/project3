@@ -52,6 +52,14 @@ public class GuiClient extends Application{
 						break;
 					case TEXT:
 						listItems.getItems().add(data.recipient+": "+data.message);
+						break;
+//					case UPDATEUSERS:
+//						listUsers.getItems().clear();
+//						listUsers.getItems().add(-1);
+//						for(int rec: data.clients){
+//							listUsers.getItems().add(rec);
+//						}
+//						break;
 				}
 			});
 		});

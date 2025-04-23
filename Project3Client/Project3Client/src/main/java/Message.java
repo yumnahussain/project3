@@ -3,7 +3,7 @@ import java.io.Serializable;
 public class Message implements Serializable {
     static final long serialVersionUID = 42L;
     enum MessageType {
-        TEXT, NEWUSER, DISCONNECT;
+        TEXT, NEWUSER, DISCONNECT, UPDATEUSERS;
     }
     MessageType type;
     String message;
