@@ -47,6 +47,14 @@ public class GuiServer extends Application{
 					case DISCONNECT:
 						listUsers.getItems().remove(String.valueOf(data.recipient));
 						listItems.getItems().add(data.recipient + " has disconnected!");
+						break;
+//					case UPDATEUSERS:
+//						listUsers.getItems().clear();
+//						listUsers.getItems().add(-1);
+//						for(int rec: data.clients){
+//							listUsers.getItems().add(rec);
+//						}
+//						break;
 				}
 			});
 		});

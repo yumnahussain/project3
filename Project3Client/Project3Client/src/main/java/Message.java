@@ -1,4 +1,5 @@
 import java.io.Serializable;
+import java.util.ArrayList;
 
 public class Message implements Serializable {
     static final long serialVersionUID = 42L;
@@ -8,7 +9,7 @@ public class Message implements Serializable {
     MessageType type;
     String message;
     int recipient;
-//    public List<Integer> clients;
+    ArrayList<Integer> clients;
 
     public Message(int i, boolean connect){
         if(connect) {
@@ -26,11 +27,13 @@ public class Message implements Serializable {
         type = MessageType.TEXT;
         message = mess;
         recipient = -1;
+        clients = new ArrayList<Integer>();
     }
 
     public Message(int rec, String mess){
         type = MessageType.TEXT;
         message = mess;
         recipient = rec;
+        clients.add(1);
     }
 }
