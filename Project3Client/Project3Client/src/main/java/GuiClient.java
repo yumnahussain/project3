@@ -1,5 +1,3 @@
-import java.util.HashMap;
-
 import javafx.application.Application;
 import javafx.application.Platform;
 import javafx.event.EventHandler;
@@ -10,6 +8,8 @@ import javafx.scene.layout.HBox;
 import javafx.scene.layout.VBox;
 import javafx.stage.Stage;
 import javafx.stage.WindowEvent;
+
+import java.util.HashMap;
 
 public class GuiClient extends Application {
 
@@ -75,6 +75,25 @@ public class GuiClient extends Application {
 		clientBox.setStyle("-fx-background-color: lightblue; -fx-alignment: center;" + "-fx-font-family: 'serif';");
 		Scene mainScene = new Scene(clientBox, 400, 300);
 
+		// play against person or AI screen
+		VBox welcomeUserLayout = new VBox(20);
+		welcomeUserLayout.setPadding(new Insets(50));
+		welcomeUserLayout.setPrefSize(400, 300);
+		welcomeUserLayout.setStyle("-fx-background-color: lightblue; -fx-alignment: center;");
+
+		Label welcomeUserLabel = new Label("Welcome USERNAME");
+		welcomeUserLabel.setStyle("-fx-font-size: 20px;");
+
+		Button humanPlayButton = new Button("Play Against Human");
+		Button aiPlayButton = new Button("Play Against AI");
+
+		humanPlayButton.setOnAction(e -> primaryStage.setScene(mainScene));
+		aiPlayButton.setOnAction(e -> primaryStage.setScene(mainScene));
+
+
+		welcomeUserLayout.getChildren().addAll(welcomeUserLabel, humanPlayButton, aiPlayButton);
+		Scene welcomeUserScene = new Scene(welcomeUserLayout);
+
 		// login screen
 		VBox loginLayout = new VBox(15);
 		loginLayout.setPadding(new Insets(30));
@@ -90,7 +109,7 @@ public class GuiClient extends Application {
 		passwordField.setPromptText("Password");
 
 		Button loginSubmit = new Button("Submit");
-		loginSubmit.setOnAction(e -> primaryStage.setScene(mainScene)); // need to get logic working later
+		loginSubmit.setOnAction(e -> primaryStage.setScene(welcomeUserScene)); // need to get logic working later
 
 		loginLayout.getChildren().addAll(loginLabel, usernameField, passwordField, loginSubmit);
 		Scene loginScene = new Scene(loginLayout, 400, 300);
@@ -110,10 +129,11 @@ public class GuiClient extends Application {
 		newPasswordField.setPromptText("Set Password");
 
 		Button signupSubmit = new Button("Submit");
-		signupSubmit.setOnAction(e -> primaryStage.setScene(mainScene)); // get sign up logic to work later
+		signupSubmit.setOnAction(e -> primaryStage.setScene(welcomeUserScene)); // get sign up logic to work later
 
 		signupLayout.getChildren().addAll(signupLabel, newUsernameField, newPasswordField, signupSubmit);
 		Scene signupScene = new Scene(signupLayout, 400, 300);
+
 
 		// welcome to game screen
 		VBox welcomeLayout = new VBox(20);
@@ -133,6 +153,68 @@ public class GuiClient extends Application {
 		welcomeLayout.getChildren().addAll(welcomeLabel, signupButton, loginButton);
 		Scene welcomeScene = new Scene(welcomeLayout);
 
+		// you win screen
+		VBox winLayout = new VBox(20);
+		winLayout.setPadding(new Insets(50));
+		winLayout.setPrefSize(400, 300);
+		winLayout.setStyle("-fx-background-color: lightblue; -fx-alignment: center;");
+
+		Label winLabel = new Label("YOU WIN!!!");
+
+		winLabel.setStyle("-fx-font-size: 20px;");
+
+		Button playAgainButton = new Button("Play Again");
+		Button exitButton = new Button("Exit Game ");
+
+		playAgainButton.setOnAction(e -> primaryStage.setScene(welcomeUserScene));
+		exitButton.setOnAction(e -> primaryStage.setScene(mainScene));
+
+		winLayout.getChildren().addAll(winLabel, playAgainButton, exitButton);
+		Scene winScene = new Scene(winLayout);
+
+		// you lose screen
+		VBox loseLayout = new VBox(20);
+		loseLayout.setPadding(new Insets(50));
+		loseLayout.setPrefSize(400, 300);
+		loseLayout.setStyle("-fx-background-color: lightblue; -fx-alignment: center;");
+
+		Label loseLabel = new Label("YOU LOST!!!");
+
+		loseLabel.setStyle("-fx-font-size: 20px;");
+
+		Button playAgainButton1 = new Button("Play Again");
+		Button exitButton1 = new Button("Exit Game ");
+
+		playAgainButton1.setOnAction(e -> primaryStage.setScene(welcomeUserScene));
+		exitButton1.setOnAction(e -> primaryStage.setScene(mainScene));
+
+		winLayout.getChildren().addAll(loseLabel, playAgainButton1, exitButton1);
+		Scene loseScene = new Scene(loseLayout);
+
+		// tie screen
+		VBox tieLayout = new VBox(20);
+		tieLayout.setPadding(new Insets(50));
+		tieLayout.setPrefSize(400, 300);
+		tieLayout.setStyle("-fx-background-color: lightblue; -fx-alignment: center;");
+
+		Label tieLabel = new Label("IT IS A TIE!!!");
+
+		tieLabel.setStyle("-fx-font-size: 20px;");
+
+		Button playAgainButton2 = new Button("Play Again");
+		Button exitButton2 = new Button("Exit Game ");
+
+		playAgainButton2.setOnAction(e -> primaryStage.setScene(welcomeUserScene));
+		exitButton2.setOnAction(e -> primaryStage.setScene(mainScene));
+
+		tieLayout.getChildren().addAll(tieLabel, playAgainButton2, exitButton2);
+		Scene tieScene = new Scene(tieLayout);
+
+		// adding the logout button
+		Button logOutButton1 = new Button("Log Out");
+		logOutButton1.setOnAction(e -> primaryStage.setScene(welcomeScene));
+		welcomeUserLayout.getChildren().addAll(logOutButton1);
+
 		// show the welcome screen first thing
 		primaryStage.setScene(welcomeScene);
 		primaryStage.setTitle("Connect Four");
@@ -147,4 +229,3 @@ public class GuiClient extends Application {
 		});
 	}
 }
-

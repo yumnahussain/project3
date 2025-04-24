@@ -2,12 +2,14 @@ import java.io.Serializable;
 
 public class Message implements Serializable {
     static final long serialVersionUID = 42L;
+//    public List<Integer> clients;
     enum MessageType {
         TEXT, NEWUSER, DISCONNECT, UPDATEUSERS;
     }
     MessageType type;
     String message;
     int recipient;
+
 
     public Message(int i, boolean connect){
         if(connect) {

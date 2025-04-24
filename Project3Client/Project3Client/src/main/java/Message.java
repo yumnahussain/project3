@@ -8,6 +8,7 @@ public class Message implements Serializable {
     MessageType type;
     String message;
     int recipient;
+//    public List<Integer> clients;
 
     public Message(int i, boolean connect){
         if(connect) {
