@@ -82,7 +82,7 @@ public class Message implements Serializable {
     public Message(MessageType type, int column) {
         this.type = type;
         this.column = column;
-        this.onlineUsers = new ArrayList<>();
+//        this.onlineUsers = new ArrayList<>();
     }
 
     public Message(MessageType type, String username, String message, String recipientUsername) {
@@ -97,4 +97,10 @@ public class Message implements Serializable {
         this.username = username;
         this.column = column;
     }
+
+//    public Message(MessageType type, int column) {
+//        this.type = type;
+//        this.column = column;
+//    }
+
 }

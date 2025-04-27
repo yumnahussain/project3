@@ -43,6 +43,19 @@ public class Client extends Thread{
 
 	}
 
+	private void handleMessage(Message message) {
+		switch (message.type) {
+			case GAME_UPDATE:
+				// Update the game board with the new state
+//				if (message.gameBoard != null) {
+					callback.accept(message);
+//				}
+				break;
+			default:
+				callback.accept(message);
+		}
+	}
+
 	public void send(Message data) {
 
 		try {
@@ -52,17 +65,5 @@ public class Client extends Thread{
 		}
 	}
 
-	private void handleMessage(Message message) {
-		switch (message.type) {
-//			case GAME_UPDATE:
-//				// Update the game board with the move
-//				if (game != null) {
-//					game.updateBoard(message.column, message.username);
-//				}
-//				break;
-			default:
-				callback.accept(message);
-		}
-	}
 
 }
