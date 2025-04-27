@@ -4,6 +4,7 @@ import java.io.Serializable;
 import java.net.ServerSocket;
 import java.net.Socket;
 import java.util.ArrayList;
+import java.util.List;
 import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.Queue;
@@ -34,7 +35,7 @@ public class Server{
 
 	private class TheServer extends Thread{
 
-		public void run() {
+	public void run() {
 
 			try(ServerSocket mysocket = new ServerSocket(5555);){
 				System.out.println("Server is waiting for a client!");
@@ -44,6 +45,7 @@ public class Server{
 
 					Socket clientSocket = mysocket.accept();
 					ClientThread c = new ClientThread(clientSocket);
+					gameMaster.addWaitingPlayer(c);
 					c.start();
 
 					count++;
@@ -51,7 +53,7 @@ public class Server{
 				}
 			}//end of try
 			catch(Exception e) {
-				callback.accept(new Message("Server did not launch"));
+				callback.accept(new Message(Message.MessageType.TEXT, "Server failed to start: " + e.getMessage()));
 			}
 		}//end of while
 	}
@@ -122,49 +124,159 @@ public class Server{
 		}
 	}
 
+	private class AIPlayer {
+		private final GameBoard board;
+		private final int aiPlayerNumber;
+
+		public AIPlayer(GameBoard board, int aiPlayerNumber) {
+			this.board = board;
+			this.aiPlayerNumber = aiPlayerNumber;
+		}
+
+		public int makeMove() {
+			// First, check if AI can win in the next move
+			for (int col = 0; col < GameBoard.COLUMNS; col++) {
+				if (board.makeMove(col, aiPlayerNumber)) {
+					if (board.checkWin()) {
+						board.makeMove(col, 0); // Undo the move
+						return col;
+					}
+					board.makeMove(col, 0); // Undo the move
+				}
+			}
+
+			// Then, check if opponent can win in the next move and block
+			int opponentNumber = 3 - aiPlayerNumber;
+			for (int col = 0; col < GameBoard.COLUMNS; col++) {
+				if (board.makeMove(col, opponentNumber)) {
+					if (board.checkWin()) {
+						board.makeMove(col, 0); // Undo the move
+						return col;
+					}
+					board.makeMove(col, 0); // Undo the move
+				}
+			}
+
+			// If no immediate win or block, make a strategic move
+			// Prefer center column
+			if (board.makeMove(3, aiPlayerNumber)) {
+				board.makeMove(3, 0); // Undo the move
+				return 3;
+			}
+
+			// Try other columns
+			for (int col = 0; col < GameBoard.COLUMNS; col++) {
+				if (board.makeMove(col, aiPlayerNumber)) {
+					board.makeMove(col, 0); // Undo the move
+					return col;
+				}
+			}
+
+			return -1; // No valid move found
+		}
+	}
+
 	private class GameSession {
 		private final GameBoard board = new GameBoard();
 		private final ClientThread player1, player2;
 		private int currentPlayer = 1;
+		private final HashMap<ClientThread, Integer> playerNumbers = new HashMap<>();
+		private AIPlayer aiPlayer;
+		private boolean isAIGame;
 
-		public GameSession(ClientThread p1, ClientThread p2) {
+		public GameSession(ClientThread p1, ClientThread p2, boolean isAIGame) {
 			this.player1 = p1;
 			this.player2 = p2;
+			this.isAIGame = isAIGame;
+			playerNumbers.put(p1, 1);
+			if (!isAIGame) {
+				playerNumbers.put(p2, 2);
+			} else {
+				aiPlayer = new AIPlayer(board, 2);
+			}
 		}
 
-		public synchronized void handleMove(int column, ClientThread from) {
-			if ((from != player1 && from != player2) || !board.makeMove(column, currentPlayer)) {
-				try {
-					from.out.writeObject(new Message(Message.MessageType.INVALID_MOVE, "Invalid move"));
-				} catch (Exception e) {
-					e.printStackTrace();
-				}
+		public synchronized void handleMove(int column, ClientThread from) throws Exception {
+			int playerNum = playerNumbers.get(from);
+			System.out.println("Player " + playerNum + " making move in column " + column);
+			
+			if (playerNum != currentPlayer || !board.makeMove(column, playerNum)) {
+				System.out.println("Invalid move attempted");
+				from.out.writeObject(new Message(Message.MessageType.INVALID_MOVE, "Invalid move"));
 				return;
 			}
 
-			// Broadcast updated board
+			// Get the current board state
+			int[][] grid = board.getGrid();
+			System.out.println("Current board state:");
+			for (int row = 0; row < 6; row++) {
+				for (int col = 0; col < 7; col++) {
+					System.out.print(grid[row][col] + " ");
+				}
+				System.out.println();
+			}
+
+			// Create and send update message to both players
+			Message update = new Message(Message.MessageType.GAME_UPDATE, grid, currentPlayer);
+			
+			// Send to player 1
 			try {
-				Message update = new Message(Message.MessageType.GAME_UPDATE, board.getGrid(), currentPlayer);
+				player1.out.reset();
 				player1.out.writeObject(update);
-				player2.out.writeObject(update);
+				System.out.println("Sent update to player 1: " + player1.username);
 			} catch (Exception e) {
-				e.printStackTrace();
+				System.out.println("Error sending to player 1: " + e.getMessage());
+			}
+
+			// Send to player 2 if not AI game
+			if (!isAIGame) {
+				try {
+					player2.out.reset();
+					player2.out.writeObject(update);
+					System.out.println("Sent update to player 2: " + player2.username);
+				} catch (Exception e) {
+					System.out.println("Error sending to player 2: " + e.getMessage());
+				}
 			}
 
 			// Check for win
 			if (board.checkWin()) {
+				Message win = new Message(Message.MessageType.GAME_OVER, currentPlayer);
+				// Send to player 1
 				try {
-					Message win = new Message(Message.MessageType.GAME_OVER, currentPlayer);
+					player1.out.reset();
 					player1.out.writeObject(win);
-					player2.out.writeObject(win);
+					System.out.println("Sent win update to player 1: " + player1.username);
 				} catch (Exception e) {
-					e.printStackTrace();
+					System.out.println("Error sending to player 1: " + e.getMessage());
 				}
+
+				// Send to player 2 if not AI game
+				if (!isAIGame) {
+					try {
+						player2.out.reset();
+						player2.out.writeObject(win);
+						System.out.println("Sent win update to player 2: " + player2.username);
+					} catch (Exception e) {
+						System.out.println("Error sending to player 2: " + e.getMessage());
+					}
+				}
+
 				return;
 			}
 
 			// Switch turn
 			currentPlayer = 3 - currentPlayer;
+			System.out.println("Switching to player " + currentPlayer);
+
+			// If it's an AI game and it's the AI's turn, make AI move
+			if (isAIGame && currentPlayer == 2) {
+				int aiMove = aiPlayer.makeMove();
+				if (aiMove != -1) {
+					Thread.sleep(1000); // Add a small delay to make AI moves more natural
+					handleMove(aiMove, player1); // Use player1 as the sender since AI is player2
+				}
+			}
 		}
 	}
 
@@ -173,22 +285,66 @@ public class Server{
 		private final Queue<ClientThread> waitingQueue = new LinkedList<>();
 
 		public synchronized void addWaitingPlayer(ClientThread newPlayer) {
+			// Remove player from any existing game sessions
+			for (GameSession game : activeGames) {
+				if (game.player1 == newPlayer || game.player2 == newPlayer) {
+					activeGames.remove(game);
+					break;
+				}
+			}
+			
+			// Add player to waiting queue
 			waitingQueue.add(newPlayer);
+			System.out.println("Player " + newPlayer.username + " added to waiting queue");
 			pairPlayers();
+		}
+
+		public synchronized void startAIGame(ClientThread player) {
+			// Remove player from any existing game sessions
+			for (GameSession game : activeGames) {
+				if (game.player1 == player || game.player2 == player) {
+					activeGames.remove(game);
+					break;
+				}
+			}
+
+			// Create a new AI game session
+			GameSession session = new GameSession(player, null, true);
+			activeGames.add(session);
+			player.currentGame = session;
+
+			try {
+				player.out.reset();
+				player.out.writeObject(new Message(Message.MessageType.GAME_START, 1));
+				System.out.println("Started AI game with player: " + player.username);
+			} catch (Exception e) {
+				System.out.println("Error starting AI game: " + e.getMessage());
+			}
 		}
 
 		private void pairPlayers() {
 			while (waitingQueue.size() >= 2) {
 				ClientThread p1 = waitingQueue.poll();
 				ClientThread p2 = waitingQueue.poll();
-				GameSession session = new GameSession(p1, p2);
+				GameSession session = new GameSession(p1, p2, false);
 				activeGames.add(session);
+				p1.currentGame = session;
+				p2.currentGame = session;
 
 				try {
+					p1.out.reset();
 					p1.out.writeObject(new Message(Message.MessageType.GAME_START, 1));
-					p2.out.writeObject(new Message(Message.MessageType.GAME_START, 2));
+					System.out.println("Sent start update to player 1: " + p1.username);
 				} catch (Exception e) {
-					e.printStackTrace();
+					System.out.println("Error sending to player 1: " + e.getMessage());
+				}
+
+				try {
+					p2.out.reset();
+					p2.out.writeObject(new Message(Message.MessageType.GAME_START, 2));
+					System.out.println("Sent start update to player 2: " + p2.username);
+				} catch (Exception e) {
+					System.out.println("Error sending to player 2: " + e.getMessage());
 				}
 			}
 		}
@@ -236,17 +392,41 @@ public class Server{
 						case REQUEST_GAME:
 							gameMaster.addWaitingPlayer(this);
 							break;
+						case GAME_START:
+							// This is handled by the GameMaster when pairing players
+							break;
+						case GAME_UPDATE:
+							// This is handled by the GameSession when making moves
+							break;
+						case GAME_OVER:
+							// This is handled by the GameSession when checking for wins
+							break;
+						case INVALID_MOVE:
+							// This is handled by the GameSession when moves are invalid
+							break;
+						case UPDATEUSERS:
+							broadcastUpdateUsers();
+							break;
+						case NEWUSER:
+							callback.accept(new Message(Message.MessageType.NEWUSER, username));
+							broadcastUpdateUsers();
+							break;
+						case SIGNUP_RESPONSE:
+							// This is handled by the handleSignup method
+							break;
+						case LOGIN_RESPONSE:
+							// This is handled by the handleLogin method
+							break;
+						case REQUEST_AI_GAME:
+							gameMaster.startAIGame(this);
+							break;
 						default:
 							break;
 					}
 				}
 			}
 			catch(Exception e) {
-				e.printStackTrace();
-				Message discon = new Message(count, false);
-				callback.accept(discon);
-				clients.remove(this);
-				break;
+				handleDisconnect();
 			}
 		}//end of run
 
@@ -277,14 +457,15 @@ public class Server{
 				out.writeObject(new Message(Message.MessageType.LOGIN_RESPONSE, "INVALID_CREDENTIALS"));
 			}
 
-			if (valid) {
-				username = msg.username;
-				broadcastUpdateUsers();
-				callback.accept(new Message(Message.MessageType.NEWUSER, username));
-			}
+			 if (valid) {
+			 	username = msg.username;
+			 	broadcastUpdateUsers();
+			 	callback.accept(new Message(Message.MessageType.NEWUSER, username));
+			 }
 		}
 
 		private void forwardText(Message msg) throws Exception {
+			callback.accept(msg);
 			for (ClientThread ct : clients) {
 				if (ct.username != null && ct.username.equals(msg.recipientUsername)) {
 					ct.out.writeObject(new Message(msg.username, msg.recipientUsername, msg.message));
@@ -317,9 +498,3 @@ public class Server{
 		}
 	}
 }
-
-
-	
-	
-
-	

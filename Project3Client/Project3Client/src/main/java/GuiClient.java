@@ -130,8 +130,18 @@ public class GuiClient extends Application {
 		humanPlay.setStyle("-fx-background-color: #3498db; -fx-text-fill: white; -fx-font-size: 14px; -fx-padding: 10 20;");
 		aiPlay.setStyle("-fx-background-color: #9b59b6; -fx-text-fill: white; -fx-font-size: 14px; -fx-padding: 10 20;");
 		logOut.setStyle("-fx-background-color: #e74c3c; -fx-text-fill: white; -fx-font-size: 14px; -fx-padding: 10 20;");
-		humanPlay.setOnAction(e -> primaryStage.setScene(chatScene));
-		aiPlay.setOnAction(e -> primaryStage.setScene(chatScene));
+		humanPlay.setOnAction(e -> {
+			clearBoard();
+			clientConnection.send(new Message(Message.MessageType.REQUEST_GAME));
+			primaryStage.setScene(chatScene);
+			chatList.getItems().add("Waiting for opponent...");
+		});
+		aiPlay.setOnAction(e -> {
+			clearBoard();
+			clientConnection.send(new Message(Message.MessageType.REQUEST_AI_GAME));
+			primaryStage.setScene(chatScene);
+			chatList.getItems().add("Starting game against AI...");
+		});
 		logOut.setOnAction(e -> primaryStage.setScene(welcomeScene));
 		layout.getChildren().addAll(welcomeUserLabel, humanPlay, aiPlay, logOut);
 		welcomeUserScene = new Scene(layout, 400, 300);

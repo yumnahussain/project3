@@ -19,7 +19,8 @@ public class Message implements Serializable {
         GAME_OVER,
         GAME_MOVE,
         REQUEST_GAME,
-        INVALID_MOVE
+        INVALID_MOVE,
+        REQUEST_AI_GAME
     }
 
     public MessageType type;
@@ -96,11 +97,6 @@ public class Message implements Serializable {
         this.type = type;
         this.username = username;
         this.column = column;
-    }
-
-    public Message(MessageType type) {
-        this.type = type;
-        this.onlineUsers = new ArrayList<>();
     }
 
 //    public Message(MessageType type, int column) {
