@@ -13,7 +13,13 @@ public class Message implements Serializable {
         SIGNUP,
         SIGNUP_RESPONSE,
         LOGIN,
-        LOGIN_RESPONSE
+        LOGIN_RESPONSE,
+        GAME_START,
+        GAME_UPDATE,
+        GAME_OVER,
+        GAME_MOVE,
+        REQUEST_GAME,
+        INVALID_MOVE
     }
 
     public MessageType type;
@@ -22,6 +28,9 @@ public class Message implements Serializable {
     public String recipientUsername;
     public String message;
     public List<String> onlineUsers;
+    public int column;
+    public int playerNumber;
+    public int[][] gameBoard;
 
     public Message(MessageType type, String username, String password) {
         this.type = type;
@@ -30,13 +39,18 @@ public class Message implements Serializable {
         this.onlineUsers = new ArrayList<>();
     }
 
-    public Message(MessageType type, String content) {
+    public Message(MessageType type, Object content) {
         this.type = type;
         this.onlineUsers = new ArrayList<>();
-        if (type == MessageType.SIGNUP_RESPONSE || type == MessageType.LOGIN_RESPONSE) {
-            this.message = content;
-        } else if (type == MessageType.NEWUSER || type == MessageType.DISCONNECT) {
-            this.username = content;
+        if (content instanceof String) {
+            String strContent = (String) content;
+            if (type == MessageType.SIGNUP_RESPONSE || type == MessageType.LOGIN_RESPONSE) {
+                this.message = strContent;
+            } else if (type == MessageType.NEWUSER || type == MessageType.DISCONNECT) {
+                this.username = strContent;
+            }
+        } else if (content instanceof Integer) {
+            this.playerNumber = (Integer) content;
         }
     }
 
@@ -51,5 +65,36 @@ public class Message implements Serializable {
     public Message(List<String> onlineUsers) {
         this.type = MessageType.UPDATEUSERS;
         this.onlineUsers = onlineUsers;
+    }
+
+    public Message(String mess){
+        this.type = MessageType.TEXT;
+        this.message = mess;
+    }
+
+    public Message(MessageType type, int[][] gameBoard, int currentPlayer) {
+        this.type = type;
+        this.gameBoard = gameBoard;
+        this.playerNumber = currentPlayer;
+        this.onlineUsers = new ArrayList<>();
+    }
+
+    public Message(MessageType type, int column) {
+        this.type = type;
+        this.column = column;
+        this.onlineUsers = new ArrayList<>();
+    }
+
+    public Message(MessageType type, String username, String message, String recipientUsername) {
+        this.type = type;
+        this.username = username;
+        this.message = message;
+        this.recipientUsername = recipientUsername;
+    }
+
+    public Message(MessageType type, String username, int column) {
+        this.type = type;
+        this.username = username;
+        this.column = column;
     }
 }

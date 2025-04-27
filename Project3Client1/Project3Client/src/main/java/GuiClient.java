@@ -8,13 +8,21 @@ import javafx.scene.layout.VBox;
 import javafx.stage.Stage;
 import javafx.stage.WindowEvent;
 import java.util.List;
+import javafx.scene.layout.GridPane;
+import javafx.scene.shape.Circle;
+import javafx.scene.paint.Color;
+import javafx.scene.input.MouseEvent;
+
+
+
 
 public class GuiClient extends Application {
 	private Client clientConnection;
 	private Stage primaryStage;
 	private String myUsername;
+	private Circle[][] circles;
 
-	private Scene welcomeScene, signupScene, loginScene, welcomeUserScene, chatScene;
+	private Scene welcomeScene, signupScene, loginScene, welcomeUserScene, chatScene, gameScene;
 	private TextField usernameField, newUsernameField, chatInput;
 	private PasswordField passwordField, newPasswordField;
 	private Label welcomeUserLabel;
@@ -128,7 +136,36 @@ public class GuiClient extends Application {
 		HBox controls = new HBox(10, userSelector, sendButton);
 		VBox layout = new VBox(10, chatInput, controls, chatList);
 		layout.setStyle("-fx-background-color: lightblue; -fx-alignment: center;");
-		chatScene = new Scene(layout, 400, 300);
+
+		// Create game board grid
+		GridPane gameBoard = new GridPane();
+		gameBoard.setStyle("-fx-background-color: blue;");
+		gameBoard.setPadding(new Insets(10));
+		gameBoard.setHgap(5);
+		gameBoard.setVgap(5);
+
+		// Initialize the game board circles
+		circles = new Circle[6][7];
+		for (int row = 0; row < 6; row++) {
+			for (int col = 0; col < 7; col++) {
+				Circle circle = new Circle(25);
+				circle.setFill(Color.WHITE);
+				circle.setStroke(Color.BLACK);
+				circles[row][col] = circle;
+				gameBoard.add(circle, col, row);
+
+				// Add click handler for each column
+				int column = col;
+//				circle.setOnMouseClicked(e -> {
+//					clientConnection.send(new Message(Message.MessageType.GAME_MOVE, column));
+//				});
+			}
+		}
+
+		layout.getChildren().add(gameBoard);
+
+		HBox outerLayout = new HBox(10, new VBox(10), layout);
+		chatScene = new Scene(outerLayout, 900, 300);
 	}
 
 	private void handleMessage(Message msg) {
@@ -163,6 +200,23 @@ public class GuiClient extends Application {
 					showError("Invalid username or password.");
 				}
 				break;
+//			case GAME_UPDATE:
+//				if (circles != null) {
+//					Platform.runLater(() -> {
+//						for (int row = 0; row < 6; row++) {
+//							for (int col = 0; col < 7; col++) {
+//								if (msg.gameBoard[row][col] == 1) {
+//									circles[row][col].setFill(Color.RED);
+//								} else if (msg.gameBoard[row][col] == 2) {
+//									circles[row][col].setFill(Color.YELLOW);
+//								} else {
+//									circles[row][col].setFill(Color.WHITE);
+//								}
+//							}
+//						}
+//					});
+//				}
+//				break;
 			default:
 				break;
 		}

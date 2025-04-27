@@ -58,7 +58,31 @@ public class GuiServer extends Application {
 				listItems.getItems().add(data.username + " went offline");
 				break;
 			case TEXT:
-				listItems.getItems().add(data.username + " -> " + data.recipientUsername + ": " + data.message);
+				listItems.getItems().add(data.username + " → " + data.recipientUsername + ": " + data.message);
+				break;
+			case SIGNUP_RESPONSE:
+				listItems.getItems().add("Signup response: " + data.message);
+				break;
+			case LOGIN_RESPONSE:
+				listItems.getItems().add("Login response: " + data.message);
+				break;
+			case GAME_START:
+				listItems.getItems().add("Game started for player " + data.playerNumber);
+				break;
+			case GAME_UPDATE:
+				listItems.getItems().add("Game board updated");
+				break;
+			case GAME_OVER:
+				listItems.getItems().add("Game over! Player " + data.playerNumber + " wins!");
+				break;
+			case GAME_MOVE:
+				listItems.getItems().add("Player made a move in column " + data.column);
+				break;
+			case REQUEST_GAME:
+				listItems.getItems().add("Player requested a game");
+				break;
+			case INVALID_MOVE:
+				listItems.getItems().add("Invalid move attempted: " + data.message);
 				break;
 			default:
 				break;

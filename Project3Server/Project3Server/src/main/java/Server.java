@@ -4,6 +4,9 @@ import java.io.Serializable;
 import java.net.ServerSocket;
 import java.net.Socket;
 import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.LinkedList;
+import java.util.Queue;
 import java.util.function.Consumer;
 
 import javafx.application.Platform;
@@ -15,21 +18,21 @@ import javafx.scene.control.ListView;
 
 public class Server{
 
-	int count = 1;
-	ArrayList<ClientThread> clients = new ArrayList<ClientThread>();
-	TheServer server;
-	private Consumer<Message> callback;
+	private int count = 1;
+	private final ArrayList<ClientThread> clients = new ArrayList<>();
+	private final HashMap<String, String> userDatabase = new HashMap<>();
+	private final Consumer<Message> callback;
+	private final GameMaster gameMaster = new GameMaster();
 
 
 	Server(Consumer<Message> call){
 
 		callback = call;
-		server = new TheServer();
-		server.start();
+		new TheServer().start();
 	}
 
 
-	public class TheServer extends Thread{
+	private class TheServer extends Thread{
 
 		public void run() {
 
@@ -39,9 +42,8 @@ public class Server{
 
 				while(true) {
 
-					ClientThread c = new ClientThread(mysocket.accept(), count);
-					callback.accept(new Message(count,true));
-					clients.add(c);
+					Socket clientSocket = mysocket.accept();
+					ClientThread c = new ClientThread(clientSocket);
 					c.start();
 
 					count++;
@@ -55,88 +57,265 @@ public class Server{
 	}
 
 
-//	public static class ClientThread extends Thread{
-//
-//
-//		Socket connection;
-//		int count;
-//		ObjectInputStream in;
-//		ObjectOutputStream out;
-//
-//		ClientThread(Socket s, int count){
-//			this.connection = s;
-//			this.count = count;
-//		}
-//
-//		public void updateClients(Message message) {
-//			switch(message.type){
-//				case TEXT:
-//					for(ClientThread t: clients){
-//						if(message.recipient==-1 || message.recipient==t.count ) {
-//							try {
-//								t.out.writeObject(message);
-//							} catch (Exception e) {
-//								System.err.println("New User Error");
-//							}
-//						}
-//					}
-//					break;
-//				case NEWUSER:
-//					for(ClientThread t : clients) {
-//						if(this != t) {
-//							try {
-//								t.out.writeObject(message);
-//							} catch (Exception e) {
-//								System.err.println("New User Error");
-//							}
-//						}
-//					}
-//					break;
-//				case DISCONNECT:
-//					for(ClientThread t : clients) {
-//						try {
-//							t.out.writeObject(message);
-//						} catch (Exception e) {
-//							System.err.println("New User Error");
-//						}
-//					}
-//
-//			}
-//
-//		}
-//
-//		public void run(){
-//
-//			try {
-//				in = new ObjectInputStream(connection.getInputStream());
-//				out = new ObjectOutputStream(connection.getOutputStream());
-//				connection.setTcpNoDelay(true);
-//			}
-//			catch(Exception e) {
-//				System.out.println("Streams not open");
-//			}
-//
-//			updateClients(new Message(count,true));
-//
-//			while(true) {
-//				try {
-//					Message data = (Message) in.readObject();
-//					callback.accept(data);
-//					updateClients(data);
-//				}
-//				catch(Exception e) {
-//					e.printStackTrace();
-//					Message discon = new Message(count, false);
-//					callback.accept(discon);
-//					updateClients(discon);
-//					clients.remove(this);
-//					break;
-//				}
-//			}
-//		}//end of run
-//
-//
-//	}//end of client thread
+	private class GameBoard {
+		public static final int COLUMNS = 7;
+		public static final int ROWS = 6;
+		private final int[][] grid = new int[ROWS][COLUMNS];
+
+		public boolean makeMove(int col, int player) {
+			if (col < 0 || col >= COLUMNS) return false;
+			for (int row = ROWS - 1; row >= 0; row--) {
+				if (grid[row][col] == 0) {
+					grid[row][col] = player;
+					return true;
+				}
+			}
+			return false;
+		}
+
+		public boolean checkWin() {
+			// Check horizontal
+			for (int row = 0; row < ROWS; row++) {
+				for (int col = 0; col < COLUMNS - 3; col++) {
+					int player = grid[row][col];
+					if (player != 0 && player == grid[row][col + 1] && 
+						player == grid[row][col + 2] && player == grid[row][col + 3]) {
+						return true;
+					}
+				}
+			}
+			// Check vertical
+			for (int row = 0; row < ROWS - 3; row++) {
+				for (int col = 0; col < COLUMNS; col++) {
+					int player = grid[row][col];
+					if (player != 0 && player == grid[row + 1][col] && 
+						player == grid[row + 2][col] && player == grid[row + 3][col]) {
+						return true;
+					}
+				}
+			}
+			// Check diagonal (down-right)
+			for (int row = 0; row < ROWS - 3; row++) {
+				for (int col = 0; col < COLUMNS - 3; col++) {
+					int player = grid[row][col];
+					if (player != 0 && player == grid[row + 1][col + 1] && 
+						player == grid[row + 2][col + 2] && player == grid[row + 3][col + 3]) {
+						return true;
+					}
+				}
+			}
+			// Check diagonal (up-right)
+			for (int row = 3; row < ROWS; row++) {
+				for (int col = 0; col < COLUMNS - 3; col++) {
+					int player = grid[row][col];
+					if (player != 0 && player == grid[row - 1][col + 1] && 
+						player == grid[row - 2][col + 2] && player == grid[row - 3][col + 3]) {
+						return true;
+					}
+				}
+			}
+			return false;
+		}
+
+		public int[][] getGrid() {
+			return grid;
+		}
+	}
+
+	private class GameSession {
+		private final GameBoard board = new GameBoard();
+		private final ClientThread player1, player2;
+		private int currentPlayer = 1;
+
+		public GameSession(ClientThread p1, ClientThread p2) {
+			this.player1 = p1;
+			this.player2 = p2;
+		}
+
+		public synchronized void handleMove(int column, ClientThread from) {
+			if ((from != player1 && from != player2) || !board.makeMove(column, currentPlayer)) {
+				try {
+					from.out.writeObject(new Message(Message.MessageType.INVALID_MOVE, "Invalid move"));
+				} catch (Exception e) {
+					e.printStackTrace();
+				}
+				return;
+			}
+
+			// Broadcast updated board
+			try {
+				Message update = new Message(Message.MessageType.GAME_UPDATE, board.getGrid(), currentPlayer);
+				player1.out.writeObject(update);
+				player2.out.writeObject(update);
+			} catch (Exception e) {
+				e.printStackTrace();
+			}
+
+			// Check for win
+			if (board.checkWin()) {
+				try {
+					Message win = new Message(Message.MessageType.GAME_OVER, currentPlayer);
+					player1.out.writeObject(win);
+					player2.out.writeObject(win);
+				} catch (Exception e) {
+					e.printStackTrace();
+				}
+				return;
+			}
+
+			// Switch turn
+			currentPlayer = 3 - currentPlayer;
+		}
+	}
+
+	private class GameMaster {
+		private final ArrayList<GameSession> activeGames = new ArrayList<>();
+		private final Queue<ClientThread> waitingQueue = new LinkedList<>();
+
+		public synchronized void addWaitingPlayer(ClientThread newPlayer) {
+			waitingQueue.add(newPlayer);
+			pairPlayers();
+		}
+
+		private void pairPlayers() {
+			while (waitingQueue.size() >= 2) {
+				ClientThread p1 = waitingQueue.poll();
+				ClientThread p2 = waitingQueue.poll();
+				GameSession session = new GameSession(p1, p2);
+				activeGames.add(session);
+
+				try {
+					p1.out.writeObject(new Message(Message.MessageType.GAME_START, 1));
+					p2.out.writeObject(new Message(Message.MessageType.GAME_START, 2));
+				} catch (Exception e) {
+					e.printStackTrace();
+				}
+			}
+		}
+	}
+
+	private class ClientThread extends Thread{
+
+		private final Socket socket;
+		private ObjectInputStream in;
+		private ObjectOutputStream out;
+		private String username;
+		private GameSession currentGame;
+
+		ClientThread(Socket s){
+			this.socket = s;
+		}
+
+		public void run(){
+
+			try {
+				out = new ObjectOutputStream(socket.getOutputStream());
+				in = new ObjectInputStream(socket.getInputStream());
+				socket.setTcpNoDelay(true);
+				clients.add(this);
+				while(true) {
+					Message data = (Message) in.readObject();
+					switch(data.type){
+						case SIGNUP:
+							handleSignup(data);
+							break;
+						case LOGIN:
+							handleLogin(data);
+							break;
+						case TEXT:
+							forwardText(data);
+							break;
+						case DISCONNECT:
+							handleDisconnect();
+							return;
+						case GAME_MOVE:
+							if (currentGame != null) {
+								currentGame.handleMove(data.column, this);
+							}
+							break;
+						case REQUEST_GAME:
+							gameMaster.addWaitingPlayer(this);
+							break;
+						default:
+							break;
+					}
+				}
+			}
+			catch(Exception e) {
+				e.printStackTrace();
+				Message discon = new Message(count, false);
+				callback.accept(discon);
+				clients.remove(this);
+				break;
+			}
+		}//end of run
+
+		private void handleSignup(Message msg) throws Exception {
+			boolean success;
+			synchronized (userDatabase) {
+				success = !userDatabase.containsKey(msg.username);
+				if (success) {
+					userDatabase.put(msg.username, msg.password);
+				}
+			}
+			if (success) {
+				out.writeObject(new Message(Message.MessageType.SIGNUP_RESPONSE, "SUCCESS"));
+			} else {
+				out.writeObject(new Message(Message.MessageType.SIGNUP_RESPONSE, "USERNAME_TAKEN"));
+			}
+		}
+
+		private void handleLogin(Message msg) throws Exception {
+			boolean valid;
+			synchronized (userDatabase) {
+				valid = userDatabase.containsKey(msg.username)
+						&& userDatabase.get(msg.username).equals(msg.password);
+			}
+			if (valid) {
+				out.writeObject(new Message(Message.MessageType.LOGIN_RESPONSE, "SUCCESS"));
+			} else {
+				out.writeObject(new Message(Message.MessageType.LOGIN_RESPONSE, "INVALID_CREDENTIALS"));
+			}
+
+			if (valid) {
+				username = msg.username;
+				broadcastUpdateUsers();
+				callback.accept(new Message(Message.MessageType.NEWUSER, username));
+			}
+		}
+
+		private void forwardText(Message msg) throws Exception {
+			for (ClientThread ct : clients) {
+				if (ct.username != null && ct.username.equals(msg.recipientUsername)) {
+					ct.out.writeObject(new Message(msg.username, msg.recipientUsername, msg.message));
+				}
+			}
+		}
+
+		private void handleDisconnect() {
+			clients.remove(this);
+			if (username != null) {
+				callback.accept(new Message(Message.MessageType.DISCONNECT, username));
+				try {
+					broadcastUpdateUsers();
+				} catch (Exception ignored) {}
+			}
+			try { socket.close(); } catch (Exception ignored) {}
+		}
+
+		private void broadcastUpdateUsers() throws Exception {
+			ArrayList<String> names = new ArrayList<>();
+			for (ClientThread ct : clients) {
+				if (ct.username != null) {
+					names.add(ct.username);
+				}
+			}
+			Message update = new Message(names);
+			for (ClientThread ct : clients) {
+				ct.out.writeObject(update);
+			}
+		}
+	}
 }
 
 

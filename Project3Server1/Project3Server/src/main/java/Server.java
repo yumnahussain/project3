@@ -1,79 +1,274 @@
 import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
+import java.io.Serializable;
 import java.net.ServerSocket;
 import java.net.Socket;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.HashMap;
+import java.util.LinkedList;
+import java.util.Queue;
 import java.util.function.Consumer;
 
-public class Server {
+import javafx.application.Platform;
+import javafx.scene.control.ListView;
+/*
+ * Clicker: A: I really get it    B: No idea what you are talking about
+ * C: kind of following
+ */
+
+public class Server{
+
 	private int count = 1;
-	private final List<ClientThread> clients = new ArrayList<>();
+	private final ArrayList<ClientThread> clients = new ArrayList<>();
 	private final HashMap<String, String> userDatabase = new HashMap<>();
 	private final Consumer<Message> callback;
+	private final GameMaster gameMaster = new GameMaster();
 
-	public Server(Consumer<Message> callback) {
-		this.callback = callback;
+
+	Server(Consumer<Message> call){
+
+		callback = call;
 		new TheServer().start();
 	}
 
-	private class TheServer extends Thread {
-		@Override
+
+	private class TheServer extends Thread{
+
 		public void run() {
-			try (ServerSocket serverSocket = new ServerSocket(5555)) {
-				while (true) {
-					Socket clientSocket = serverSocket.accept();
-					ClientThread thread = new ClientThread(clientSocket);
-					thread.start();
+
+			try(ServerSocket mysocket = new ServerSocket(5555);){
+				System.out.println("Server is waiting for a client!");
+
+
+				while(true) {
+
+					Socket clientSocket = mysocket.accept();
+					ClientThread c = new ClientThread(clientSocket);
+					c.start();
+
 					count++;
+
 				}
-			} catch (Exception e) {
+			}//end of try
+			catch(Exception e) {
 				callback.accept(new Message(Message.MessageType.TEXT, "Server failed to start: " + e.getMessage()));
+			}
+		}//end of while
+	}
+
+
+	private class GameBoard {
+		public static final int COLUMNS = 7;
+		public static final int ROWS = 6;
+		private final int[][] grid = new int[ROWS][COLUMNS];
+
+		public boolean makeMove(int col, int player) {
+			if (col < 0 || col >= COLUMNS) return false;
+			for (int row = ROWS - 1; row >= 0; row--) {
+				if (grid[row][col] == 0) {
+					grid[row][col] = player;
+					return true;
+				}
+			}
+			return false;
+		}
+
+		public boolean checkWin() {
+			// Check horizontal
+			for (int row = 0; row < ROWS; row++) {
+				for (int col = 0; col < COLUMNS - 3; col++) {
+					int player = grid[row][col];
+					if (player != 0 && player == grid[row][col + 1] && 
+						player == grid[row][col + 2] && player == grid[row][col + 3]) {
+						return true;
+					}
+				}
+			}
+			// Check vertical
+			for (int row = 0; row < ROWS - 3; row++) {
+				for (int col = 0; col < COLUMNS; col++) {
+					int player = grid[row][col];
+					if (player != 0 && player == grid[row + 1][col] && 
+						player == grid[row + 2][col] && player == grid[row + 3][col]) {
+						return true;
+					}
+				}
+			}
+			// Check diagonal (down-right)
+			for (int row = 0; row < ROWS - 3; row++) {
+				for (int col = 0; col < COLUMNS - 3; col++) {
+					int player = grid[row][col];
+					if (player != 0 && player == grid[row + 1][col + 1] && 
+						player == grid[row + 2][col + 2] && player == grid[row + 3][col + 3]) {
+						return true;
+					}
+				}
+			}
+			// Check diagonal (up-right)
+			for (int row = 3; row < ROWS; row++) {
+				for (int col = 0; col < COLUMNS - 3; col++) {
+					int player = grid[row][col];
+					if (player != 0 && player == grid[row - 1][col + 1] && 
+						player == grid[row - 2][col + 2] && player == grid[row - 3][col + 3]) {
+						return true;
+					}
+				}
+			}
+			return false;
+		}
+
+		public int[][] getGrid() {
+			return grid;
+		}
+	}
+
+	private class GameSession {
+		private final GameBoard board = new GameBoard();
+		private final ClientThread player1, player2;
+		private int currentPlayer = 1;
+
+		public GameSession(ClientThread p1, ClientThread p2) {
+			this.player1 = p1;
+			this.player2 = p2;
+		}
+
+		public synchronized void handleMove(int column, ClientThread from) {
+			if ((from != player1 && from != player2) || !board.makeMove(column, currentPlayer)) {
+				try {
+					from.out.writeObject(new Message(Message.MessageType.INVALID_MOVE, "Invalid move"));
+				} catch (Exception e) {
+					e.printStackTrace();
+				}
+				return;
+			}
+
+			// Broadcast updated board
+			try {
+				Message update = new Message(Message.MessageType.GAME_UPDATE, board.getGrid(), currentPlayer);
+				player1.out.writeObject(update);
+				player2.out.writeObject(update);
+			} catch (Exception e) {
+				e.printStackTrace();
+			}
+
+			// Check for win
+			if (board.checkWin()) {
+				try {
+					Message win = new Message(Message.MessageType.GAME_OVER, currentPlayer);
+					player1.out.writeObject(win);
+					player2.out.writeObject(win);
+				} catch (Exception e) {
+					e.printStackTrace();
+				}
+				return;
+			}
+
+			// Switch turn
+			currentPlayer = 3 - currentPlayer;
+		}
+	}
+
+	private class GameMaster {
+		private final ArrayList<GameSession> activeGames = new ArrayList<>();
+		private final Queue<ClientThread> waitingQueue = new LinkedList<>();
+
+		public synchronized void addWaitingPlayer(ClientThread newPlayer) {
+			waitingQueue.add(newPlayer);
+			pairPlayers();
+		}
+
+		private void pairPlayers() {
+			while (waitingQueue.size() >= 2) {
+				ClientThread p1 = waitingQueue.poll();
+				ClientThread p2 = waitingQueue.poll();
+				GameSession session = new GameSession(p1, p2);
+				activeGames.add(session);
+
+				try {
+					p1.out.writeObject(new Message(Message.MessageType.GAME_START, 1));
+					p2.out.writeObject(new Message(Message.MessageType.GAME_START, 2));
+				} catch (Exception e) {
+					e.printStackTrace();
+				}
 			}
 		}
 	}
 
-	private class ClientThread extends Thread {
+	private class ClientThread extends Thread{
+
 		private final Socket socket;
 		private ObjectInputStream in;
 		private ObjectOutputStream out;
 		private String username;
+		private GameSession currentGame;
 
-		ClientThread(Socket socket) {
-			this.socket = socket;
+		ClientThread(Socket s){
+			this.socket = s;
 		}
 
-		@Override
-		public void run() {
+		public void run(){
+
 			try {
 				out = new ObjectOutputStream(socket.getOutputStream());
 				in = new ObjectInputStream(socket.getInputStream());
 				socket.setTcpNoDelay(true);
 				clients.add(this);
-				while (true) {
-					Message msg = (Message) in.readObject();
-					switch (msg.type) {
+				while(true) {
+					Message data = (Message) in.readObject();
+					switch(data.type){
 						case SIGNUP:
-							handleSignup(msg);
+							handleSignup(data);
 							break;
 						case LOGIN:
-							handleLogin(msg);
+							handleLogin(data);
 							break;
 						case TEXT:
-							forwardText(msg);
+							forwardText(data);
 							break;
 						case DISCONNECT:
 							handleDisconnect();
 							return;
+						case GAME_MOVE:
+							// Get the player number from the username
+							int playerNumber = getPlayerNumber(data.username);
+							if (playerNumber != -1) {
+								// Make the move on the game board
+								boolean validMove = currentGame.board.makeMove(data.column, playerNumber);
+								if (validMove) {
+									// Send game update to all clients
+									Message updateMessage = new Message(Message.MessageType.GAME_UPDATE, data.username, data.column);
+									broadcast(updateMessage);
+									
+									// Check for win
+									if (currentGame.board.checkWin()) {
+										Message winMessage = new Message(Message.MessageType.GAME_OVER, data.username, "Player " + playerNumber + " wins!");
+										broadcast(winMessage);
+									}
+								} else {
+									// Send invalid move message back to the player
+									Message invalidMessage = new Message(Message.MessageType.INVALID_MOVE, data.username, "Invalid move in column " + data.column);
+									sendToClient(data.username, invalidMessage);
+								}
+							}
+							break;
+						case REQUEST_GAME:
+							gameMaster.addWaitingPlayer(this);
+							break;
 						default:
 							break;
 					}
 				}
-			} catch (Exception e) {
-				handleDisconnect();
 			}
-		}
+			catch(Exception e) {
+				handleDisconnect();
+//				e.printStackTrace();
+//				Message discon = new Message(Message.MessageType.DISCONNECT, String.valueOf(count));
+//				callback.accept(discon);
+//				clients.remove(this);
+//				break;
+			}
+		}//end of run
 
 		private void handleSignup(Message msg) throws Exception {
 			boolean success;
@@ -88,6 +283,12 @@ public class Server {
 			} else {
 				out.writeObject(new Message(Message.MessageType.SIGNUP_RESPONSE, "USERNAME_TAKEN"));
 			}
+
+			// if (success) {
+			// 	username = msg.username;
+			// 	broadcastUpdateUsers();
+			// 	callback.accept(new Message(Message.MessageType.NEWUSER, username));
+			// }
 		}
 
 		private void handleLogin(Message msg) throws Exception {
@@ -102,14 +303,15 @@ public class Server {
 				out.writeObject(new Message(Message.MessageType.LOGIN_RESPONSE, "INVALID_CREDENTIALS"));
 			}
 
-			if (valid) {
-				username = msg.username;
-				broadcastUpdateUsers();
-				callback.accept(new Message(Message.MessageType.NEWUSER, username));
-			}
+			 if (valid) {
+			 	username = msg.username;
+			 	broadcastUpdateUsers();
+			 	callback.accept(new Message(Message.MessageType.NEWUSER, username));
+			 }
 		}
 
 		private void forwardText(Message msg) throws Exception {
+			callback.accept(msg);
 			for (ClientThread ct : clients) {
 				if (ct.username != null && ct.username.equals(msg.recipientUsername)) {
 					ct.out.writeObject(new Message(msg.username, msg.recipientUsername, msg.message));
@@ -129,7 +331,7 @@ public class Server {
 		}
 
 		private void broadcastUpdateUsers() throws Exception {
-			List<String> names = new ArrayList<>();
+			ArrayList<String> names = new ArrayList<>();
 			for (ClientThread ct : clients) {
 				if (ct.username != null) {
 					names.add(ct.username);

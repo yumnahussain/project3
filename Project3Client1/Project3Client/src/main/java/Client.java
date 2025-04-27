@@ -36,7 +36,7 @@ public class Client extends Thread{
 
 			try {
 				Message message = (Message) in.readObject();
-				callback.accept(message);
+				handleMessage(message);
 			}
 			catch(Exception e) {}
 		}
@@ -52,5 +52,17 @@ public class Client extends Thread{
 		}
 	}
 
+	private void handleMessage(Message message) {
+		switch (message.type) {
+//			case GAME_UPDATE:
+//				// Update the game board with the move
+//				if (game != null) {
+//					game.updateBoard(message.column, message.username);
+//				}
+//				break;
+			default:
+				callback.accept(message);
+		}
+	}
 
 }

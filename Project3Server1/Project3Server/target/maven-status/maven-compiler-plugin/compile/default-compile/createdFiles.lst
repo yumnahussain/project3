@@ -1,5 +1,7 @@
+Server$GameSession.class
 GuiServer.class
 Message$MessageType.class
+Server$GameBoard.class
 Server$ClientThread.class
 GuiServer$2.class
 Server$1.class
@@ -7,3 +9,4 @@ Server.class
 Message.class
 GuiServer$1.class
 Server$TheServer.class
+Server$GameMaster.class
