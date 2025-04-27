@@ -1,6 +1,5 @@
 import javafx.application.Application;
 import javafx.application.Platform;
-import javafx.event.EventHandler;
 import javafx.geometry.Insets;
 import javafx.scene.Scene;
 import javafx.scene.control.*;
@@ -8,224 +7,172 @@ import javafx.scene.layout.HBox;
 import javafx.scene.layout.VBox;
 import javafx.stage.Stage;
 import javafx.stage.WindowEvent;
-
-import java.util.HashMap;
+import java.util.List;
 
 public class GuiClient extends Application {
+	private Client clientConnection;
+	private Stage primaryStage;
+	private String myUsername;
 
-	TextField c1;
-	Button b1;
-	HashMap<String, Scene> sceneMap;
-	VBox clientBox;
-	Client clientConnection;
-
-	HBox fields;
-
-	ComboBox<Integer> listUsers;
-	ListView<String> listItems;
+	private Scene welcomeScene, signupScene, loginScene, welcomeUserScene, chatScene;
+	private TextField usernameField, newUsernameField, chatInput;
+	private PasswordField passwordField, newPasswordField;
+	private Label welcomeUserLabel;
+	private ComboBox<String> userSelector;
+	private ListView<String> chatList;
+	private Button sendButton;
 
 	public static void main(String[] args) {
 		launch(args);
 	}
 
 	@Override
-	public void start(Stage primaryStage) throws Exception {
-		clientConnection = new Client(data -> {
-			Platform.runLater(() -> {
-				switch (data.type) {
-					case NEWUSER:
-						listUsers.getItems().add(data.recipient);
-						listItems.getItems().add(data.recipient + " has joined!");
-						break;
-					case DISCONNECT:
-						listUsers.getItems().remove(data.recipient);
-						listItems.getItems().add(data.recipient + " has disconnected!");
-						break;
-					case TEXT:
-						listItems.getItems().add(data.recipient + ": " + data.message);
-						break;
-//					case UPDATEUSERS:
-//						listUsers.getItems().clear();
-//						listUsers.getItems().add(-1);
-//						for(int rec: data.clients){
-//							listUsers.getItems().add(rec);
-//						}
-//						break;
-				}
-			});
-		});
-
+	public void start(Stage stage) {
+		primaryStage = stage;
+		clientConnection = new Client(data -> Platform.runLater(() -> handleMessage(data)));
 		clientConnection.start();
-
-		// texting screen setup
-		listUsers = new ComboBox<>();
-		listUsers.getItems().add(-1);
-		listUsers.setValue(-1);
-		listItems = new ListView<>();
-
-		c1 = new TextField();
-		b1 = new Button("Send");
-		fields = new HBox(listUsers, b1);
-		b1.setOnAction(e -> {
-			clientConnection.send(new Message(listUsers.getValue(), c1.getText()));
-			c1.clear();
-		});
-
-		clientBox = new VBox(10, c1, fields, listItems);
-		clientBox.setStyle("-fx-background-color: lightblue; -fx-alignment: center;" + "-fx-font-family: 'serif';");
-		Scene mainScene = new Scene(clientBox, 400, 300);
-
-		// play against person or AI screen
-		VBox welcomeUserLayout = new VBox(20);
-		welcomeUserLayout.setPadding(new Insets(50));
-		welcomeUserLayout.setPrefSize(400, 300);
-		welcomeUserLayout.setStyle("-fx-background-color: lightblue; -fx-alignment: center;");
-
-		Label welcomeUserLabel = new Label("Welcome USERNAME");
-		welcomeUserLabel.setStyle("-fx-font-size: 20px;");
-
-		Button humanPlayButton = new Button("Play Against Human");
-		Button aiPlayButton = new Button("Play Against AI");
-
-		humanPlayButton.setOnAction(e -> primaryStage.setScene(mainScene));
-		aiPlayButton.setOnAction(e -> primaryStage.setScene(mainScene));
-
-
-		welcomeUserLayout.getChildren().addAll(welcomeUserLabel, humanPlayButton, aiPlayButton);
-		Scene welcomeUserScene = new Scene(welcomeUserLayout);
-
-		// login screen
-		VBox loginLayout = new VBox(15);
-		loginLayout.setPadding(new Insets(30));
-		loginLayout.setStyle("-fx-background-color: lightblue; -fx-alignment: center;");
-
-		Label loginLabel = new Label("Login");
-		loginLabel.setStyle("-fx-font-size: 20px;");
-
-		TextField usernameField = new TextField();
-		usernameField.setPromptText("Username");
-
-		PasswordField passwordField = new PasswordField();
-		passwordField.setPromptText("Password");
-
-		Button loginSubmit = new Button("Submit");
-		loginSubmit.setOnAction(e -> primaryStage.setScene(welcomeUserScene)); // need to get logic working later
-
-		loginLayout.getChildren().addAll(loginLabel, usernameField, passwordField, loginSubmit);
-		Scene loginScene = new Scene(loginLayout, 400, 300);
-
-		// sign up screen
-		VBox signupLayout = new VBox(15);
-		signupLayout.setPadding(new Insets(30));
-		signupLayout.setStyle("-fx-background-color: lightblue; -fx-alignment: center;");
-
-		Label signupLabel = new Label("Sign Up");
-		signupLabel.setStyle("-fx-font-size: 20px;");
-
-		TextField newUsernameField = new TextField();
-		newUsernameField.setPromptText("Set Username");
-
-		PasswordField newPasswordField = new PasswordField();
-		newPasswordField.setPromptText("Set Password");
-
-		Button signupSubmit = new Button("Submit");
-		signupSubmit.setOnAction(e -> primaryStage.setScene(welcomeUserScene)); // get sign up logic to work later
-
-		signupLayout.getChildren().addAll(signupLabel, newUsernameField, newPasswordField, signupSubmit);
-		Scene signupScene = new Scene(signupLayout, 400, 300);
-
-
-		// welcome to game screen
-		VBox welcomeLayout = new VBox(20);
-		welcomeLayout.setPadding(new Insets(50));
-		welcomeLayout.setPrefSize(400, 300);
-		welcomeLayout.setStyle("-fx-background-color: lightblue; -fx-alignment: center;");
-
-		Label welcomeLabel = new Label("Welcome to Connect Four");
-		welcomeLabel.setStyle("-fx-font-size: 20px;");
-
-		Button signupButton = new Button("Sign Up");
-		Button loginButton = new Button("Log In");
-
-		signupButton.setOnAction(e -> primaryStage.setScene(signupScene));
-		loginButton.setOnAction(e -> primaryStage.setScene(loginScene));
-
-		welcomeLayout.getChildren().addAll(welcomeLabel, signupButton, loginButton);
-		Scene welcomeScene = new Scene(welcomeLayout);
-
-		// you win screen
-		VBox winLayout = new VBox(20);
-		winLayout.setPadding(new Insets(50));
-		winLayout.setPrefSize(400, 300);
-		winLayout.setStyle("-fx-background-color: lightblue; -fx-alignment: center;");
-
-		Label winLabel = new Label("YOU WIN!!!");
-
-		winLabel.setStyle("-fx-font-size: 20px;");
-
-		Button playAgainButton = new Button("Play Again");
-		Button exitButton = new Button("Exit Game ");
-
-		playAgainButton.setOnAction(e -> primaryStage.setScene(welcomeUserScene));
-		exitButton.setOnAction(e -> primaryStage.setScene(mainScene));
-
-		winLayout.getChildren().addAll(winLabel, playAgainButton, exitButton);
-		Scene winScene = new Scene(winLayout);
-
-		// you lose screen
-		VBox loseLayout = new VBox(20);
-		loseLayout.setPadding(new Insets(50));
-		loseLayout.setPrefSize(400, 300);
-		loseLayout.setStyle("-fx-background-color: lightblue; -fx-alignment: center;");
-
-		Label loseLabel = new Label("YOU LOST!!!");
-
-		loseLabel.setStyle("-fx-font-size: 20px;");
-
-		Button playAgainButton1 = new Button("Play Again");
-		Button exitButton1 = new Button("Exit Game ");
-
-		playAgainButton1.setOnAction(e -> primaryStage.setScene(welcomeUserScene));
-		exitButton1.setOnAction(e -> primaryStage.setScene(mainScene));
-
-		winLayout.getChildren().addAll(loseLabel, playAgainButton1, exitButton1);
-		Scene loseScene = new Scene(loseLayout);
-
-		// tie screen
-		VBox tieLayout = new VBox(20);
-		tieLayout.setPadding(new Insets(50));
-		tieLayout.setPrefSize(400, 300);
-		tieLayout.setStyle("-fx-background-color: lightblue; -fx-alignment: center;");
-
-		Label tieLabel = new Label("IT IS A TIE!!!");
-
-		tieLabel.setStyle("-fx-font-size: 20px;");
-
-		Button playAgainButton2 = new Button("Play Again");
-		Button exitButton2 = new Button("Exit Game ");
-
-		playAgainButton2.setOnAction(e -> primaryStage.setScene(welcomeUserScene));
-		exitButton2.setOnAction(e -> primaryStage.setScene(mainScene));
-
-		tieLayout.getChildren().addAll(tieLabel, playAgainButton2, exitButton2);
-		Scene tieScene = new Scene(tieLayout);
-
-		// adding the logout button
-		Button logOutButton1 = new Button("Log Out");
-		logOutButton1.setOnAction(e -> primaryStage.setScene(welcomeScene));
-		welcomeUserLayout.getChildren().addAll(logOutButton1);
-
-		// show the welcome screen first thing
+		buildWelcomeScene();
+		buildSignupScene();
+		buildLoginScene();
+		buildWelcomeUserScene();
+		buildChatScene();
 		primaryStage.setScene(welcomeScene);
 		primaryStage.setTitle("Connect Four");
 		primaryStage.show();
+		primaryStage.setOnCloseRequest(e -> { Platform.exit(); System.exit(0); });
+	}
 
-		primaryStage.setOnCloseRequest(new EventHandler<WindowEvent>() {
-			@Override
-			public void handle(WindowEvent t) {
-				Platform.exit();
-				System.exit(0);
+	private void buildWelcomeScene() {
+		VBox layout = new VBox(20);
+		layout.setPadding(new Insets(50));
+		layout.setStyle("-fx-background-color: lightblue; -fx-alignment: center;");
+		Label label = new Label("Welcome to Connect Four");
+		label.setStyle("-fx-font-size: 20px;");
+		Button signupButton = new Button("Sign Up");
+		Button loginButton = new Button("Log In");
+		signupButton.setOnAction(e -> primaryStage.setScene(signupScene));
+		loginButton.setOnAction(e -> primaryStage.setScene(loginScene));
+		layout.getChildren().addAll(label, signupButton, loginButton);
+		welcomeScene = new Scene(layout, 400, 300);
+	}
+
+	private void buildSignupScene() {
+		VBox layout = new VBox(15);
+		layout.setPadding(new Insets(30));
+		layout.setStyle("-fx-background-color: lightblue; -fx-alignment: center;");
+		Label label = new Label("Sign Up");
+		label.setStyle("-fx-font-size: 20px;");
+		newUsernameField = new TextField();
+		newUsernameField.setPromptText("Username");
+		newPasswordField = new PasswordField();
+		newPasswordField.setPromptText("Password");
+		Button submit = new Button("Submit");
+		Button back = new Button("Back");
+		back.setOnAction(e -> primaryStage.setScene(welcomeScene));
+		submit.setOnAction(e -> clientConnection.send(
+				new Message(Message.MessageType.SIGNUP, newUsernameField.getText(), newPasswordField.getText())
+		));
+		layout.getChildren().addAll(label, newUsernameField, newPasswordField, submit, back);
+		signupScene = new Scene(layout, 400, 300);
+	}
+
+	private void buildLoginScene() {
+		VBox layout = new VBox(15);
+		layout.setPadding(new Insets(30));
+		layout.setStyle("-fx-background-color: lightblue; -fx-alignment: center;");
+		Label label = new Label("Login");
+		label.setStyle("-fx-font-size: 20px;");
+		usernameField = new TextField();
+		usernameField.setPromptText("Username");
+		passwordField = new PasswordField();
+		passwordField.setPromptText("Password");
+		Button submit = new Button("Submit");
+		Button back = new Button("Back");
+		back.setOnAction(e -> primaryStage.setScene(welcomeScene));
+		submit.setOnAction(e -> clientConnection.send(
+				new Message(Message.MessageType.LOGIN, usernameField.getText(), passwordField.getText())
+		));
+		layout.getChildren().addAll(label, usernameField, passwordField, submit, back);
+		loginScene = new Scene(layout, 400, 300);
+	}
+
+	private void buildWelcomeUserScene() {
+		VBox layout = new VBox(20);
+		layout.setPadding(new Insets(50));
+		layout.setStyle("-fx-background-color: lightblue; -fx-alignment: center;");
+		welcomeUserLabel = new Label();
+		welcomeUserLabel.setStyle("-fx-font-size: 20px;");
+		Button humanPlay = new Button("Play Against Human");
+		Button aiPlay = new Button("Play Against AI");
+		humanPlay.setOnAction(e -> primaryStage.setScene(chatScene));
+		aiPlay.setOnAction(e -> primaryStage.setScene(chatScene));
+		Button logOut = new Button("Log Out");
+		logOut.setOnAction(e -> primaryStage.setScene(welcomeScene));
+		layout.getChildren().addAll(welcomeUserLabel, humanPlay, aiPlay, logOut);
+		welcomeUserScene = new Scene(layout, 400, 300);
+	}
+
+	private void buildChatScene() {
+		userSelector = new ComboBox<>();
+		userSelector.setPromptText("Select a user");
+		chatList = new ListView<>();
+		chatInput = new TextField();
+		sendButton = new Button("Send");
+		sendButton.setOnAction(e -> {
+			String to = userSelector.getValue();
+			if (to != null) {
+				clientConnection.send(new Message(myUsername, to, chatInput.getText()));
+				chatInput.clear();
 			}
 		});
+		HBox controls = new HBox(10, userSelector, sendButton);
+		VBox layout = new VBox(10, chatInput, controls, chatList);
+		layout.setStyle("-fx-background-color: lightblue; -fx-alignment: center;");
+		chatScene = new Scene(layout, 400, 300);
+	}
+
+	private void handleMessage(Message msg) {
+		switch (msg.type) {
+			case UPDATEUSERS:
+				List<String> names = msg.onlineUsers;
+				userSelector.getItems().setAll(names);
+				break;
+			case NEWUSER:
+				chatList.getItems().add(msg.username + " came online");
+				break;
+			case DISCONNECT:
+				chatList.getItems().add(msg.username + " went offline");
+				break;
+			case TEXT:
+				chatList.getItems().add(msg.username + ": " + msg.message);
+				break;
+			case SIGNUP_RESPONSE:
+				if ("SUCCESS".equals(msg.message)) {
+					showInfo("Sign up successful; please log in.");
+					primaryStage.setScene(loginScene);
+				} else {
+					showError("Username already taken.");
+				}
+				break;
+			case LOGIN_RESPONSE:
+				if ("SUCCESS".equals(msg.message)) {
+					myUsername = usernameField.getText();
+					welcomeUserLabel.setText("Welcome " + myUsername);
+					primaryStage.setScene(welcomeUserScene);
+				} else {
+					showError("Invalid username or password.");
+				}
+				break;
+			default:
+				break;
+		}
+	}
+
+	private void showError(String msg) {
+		Alert alert = new Alert(Alert.AlertType.ERROR); alert.setHeaderText(null); alert.setContentText(msg); alert.showAndWait();
+	}
+
+	private void showInfo(String msg) {
+		Alert alert = new Alert(Alert.AlertType.INFORMATION); alert.setHeaderText(null); alert.setContentText(msg); alert.showAndWait();
 	}
 }

@@ -1,146 +1,144 @@
 import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
-import java.io.Serializable;
 import java.net.ServerSocket;
 import java.net.Socket;
 import java.util.ArrayList;
+import java.util.List;
+import java.util.HashMap;
 import java.util.function.Consumer;
 
-import javafx.application.Platform;
-import javafx.scene.control.ListView;
-/*
- * Clicker: A: I really get it    B: No idea what you are talking about
- * C: kind of following
- */
+public class Server {
+	private int count = 1;
+	private final List<ClientThread> clients = new ArrayList<>();
+	private final HashMap<String, String> userDatabase = new HashMap<>();
+	private final Consumer<Message> callback;
 
-public class Server{
-
-	int count = 1;
-	ArrayList<ClientThread> clients = new ArrayList<ClientThread>();
-	TheServer server;
-	private Consumer<Message> callback;
-
-
-	Server(Consumer<Message> call){
-
-		callback = call;
-		server = new TheServer();
-		server.start();
+	public Server(Consumer<Message> callback) {
+		this.callback = callback;
+		new TheServer().start();
 	}
 
-
-	public class TheServer extends Thread{
-
+	private class TheServer extends Thread {
+		@Override
 		public void run() {
-
-			try(ServerSocket mysocket = new ServerSocket(5555);){
-				System.out.println("Server is waiting for a client!");
-
-
-				while(true) {
-
-					ClientThread c = new ClientThread(mysocket.accept(), count);
-					callback.accept(new Message(count,true));
-					clients.add(c);
-					c.start();
-
+			try (ServerSocket serverSocket = new ServerSocket(5555)) {
+				while (true) {
+					Socket clientSocket = serverSocket.accept();
+					ClientThread thread = new ClientThread(clientSocket);
+					thread.start();
 					count++;
-
 				}
-			}//end of try
-			catch(Exception e) {
-				callback.accept(new Message("Server did not launch"));
+			} catch (Exception e) {
+				callback.accept(new Message(Message.MessageType.TEXT, "Server failed to start: " + e.getMessage()));
 			}
-		}//end of while
+		}
 	}
 
+	private class ClientThread extends Thread {
+		private final Socket socket;
+		private ObjectInputStream in;
+		private ObjectOutputStream out;
+		private String username;
 
-	public class ClientThread extends Thread{
-
-
-		Socket connection;
-		int count;
-		ObjectInputStream in;
-		ObjectOutputStream out;
-
-		ClientThread(Socket s, int count){
-			this.connection = s;
-			this.count = count;
+		ClientThread(Socket socket) {
+			this.socket = socket;
 		}
 
-		public void updateClients(Message message) {
-			switch(message.type){
-				case TEXT:
-					for(ClientThread t: clients){
-						if(message.recipient==-1 || message.recipient==t.count ) {
-							try {
-								t.out.writeObject(message);
-							} catch (Exception e) {
-								System.err.println("New User Error");
-							}
-						}
-					}
-					break;
-				case NEWUSER:
-					for(ClientThread t : clients) {
-						if(this != t) {
-							try {
-								t.out.writeObject(message);
-							} catch (Exception e) {
-								System.err.println("New User Error");
-							}
-						}
-					}
-					break;
-				case DISCONNECT:
-					for(ClientThread t : clients) {
-						try {
-							t.out.writeObject(message);
-						} catch (Exception e) {
-							System.err.println("New User Error");
-						}
-					}
-
-			}
-
-		}
-
-		public void run(){
-
+		@Override
+		public void run() {
 			try {
-				in = new ObjectInputStream(connection.getInputStream());
-				out = new ObjectOutputStream(connection.getOutputStream());
-				connection.setTcpNoDelay(true);
+				out = new ObjectOutputStream(socket.getOutputStream());
+				in = new ObjectInputStream(socket.getInputStream());
+				socket.setTcpNoDelay(true);
+				clients.add(this);
+				while (true) {
+					Message msg = (Message) in.readObject();
+					switch (msg.type) {
+						case SIGNUP:
+							handleSignup(msg);
+							break;
+						case LOGIN:
+							handleLogin(msg);
+							break;
+						case TEXT:
+							forwardText(msg);
+							break;
+						case DISCONNECT:
+							handleDisconnect();
+							return;
+						default:
+							break;
+					}
+				}
+			} catch (Exception e) {
+				handleDisconnect();
 			}
-			catch(Exception e) {
-				System.out.println("Streams not open");
+		}
+
+		private void handleSignup(Message msg) throws Exception {
+			boolean success;
+			synchronized (userDatabase) {
+				success = !userDatabase.containsKey(msg.username);
+				if (success) {
+					userDatabase.put(msg.username, msg.password);
+				}
+			}
+			if (success) {
+				out.writeObject(new Message(Message.MessageType.SIGNUP_RESPONSE, "SUCCESS"));
+			} else {
+				out.writeObject(new Message(Message.MessageType.SIGNUP_RESPONSE, "USERNAME_TAKEN"));
+			}
+		}
+
+		private void handleLogin(Message msg) throws Exception {
+			boolean valid;
+			synchronized (userDatabase) {
+				valid = userDatabase.containsKey(msg.username)
+						&& userDatabase.get(msg.username).equals(msg.password);
+			}
+			if (valid) {
+				out.writeObject(new Message(Message.MessageType.LOGIN_RESPONSE, "SUCCESS"));
+			} else {
+				out.writeObject(new Message(Message.MessageType.LOGIN_RESPONSE, "INVALID_CREDENTIALS"));
 			}
 
-			updateClients(new Message(count,true));
+			if (valid) {
+				username = msg.username;
+				broadcastUpdateUsers();
+				callback.accept(new Message(Message.MessageType.NEWUSER, username));
+			}
+		}
 
-			while(true) {
+		private void forwardText(Message msg) throws Exception {
+			for (ClientThread ct : clients) {
+				if (ct.username != null && ct.username.equals(msg.recipientUsername)) {
+					ct.out.writeObject(new Message(msg.username, msg.recipientUsername, msg.message));
+				}
+			}
+		}
+
+		private void handleDisconnect() {
+			clients.remove(this);
+			if (username != null) {
+				callback.accept(new Message(Message.MessageType.DISCONNECT, username));
 				try {
-					Message data = (Message) in.readObject();
-					callback.accept(data);
-					updateClients(data);
-				}
-				catch(Exception e) {
-					e.printStackTrace();
-					Message discon = new Message(count, false);
-					callback.accept(discon);
-					updateClients(discon);
-					clients.remove(this);
-					break;
+					broadcastUpdateUsers();
+				} catch (Exception ignored) {}
+			}
+			try { socket.close(); } catch (Exception ignored) {}
+		}
+
+		private void broadcastUpdateUsers() throws Exception {
+			List<String> names = new ArrayList<>();
+			for (ClientThread ct : clients) {
+				if (ct.username != null) {
+					names.add(ct.username);
 				}
 			}
-		}//end of run
-
-
-	}//end of client thread
+			Message update = new Message(names);
+			for (ClientThread ct : clients) {
+				ct.out.writeObject(update);
+			}
+		}
+	}
 }
-
-
-	
-	
-
-	
